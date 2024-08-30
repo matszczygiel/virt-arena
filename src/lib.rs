@@ -15,7 +15,7 @@ impl VirtArena {
     /// Allocates a struct `T` inside the arena and clears its memory to 0.
     ///
     /// # Safety
-    /// Look into (`std::mem::zeroed()`)[std::mem::zeroed] for safety concerns.
+    /// Look into [std::mem::zeroed] for safety concerns.
     #[allow(clippy::mut_from_ref)]
     pub unsafe fn alloc_zeroed<T: Sized>(&self) -> &mut T {
         self.0.alloc_zeroed()
@@ -51,6 +51,9 @@ impl VirtArena {
         self.0.reset()
     }
 }
+
+// We don't use any thread local storage so this should be fine
+unsafe impl Send for VirtArena {}
 
 const VIRT_ALLOC_SIZE: usize = 128 * (1 << 30); // 128 GiB is assumed to be enoght for every use case of this arena
 
