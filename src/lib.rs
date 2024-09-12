@@ -1,10 +1,14 @@
 #[cfg(unix)]
 mod unix;
+#[cfg(windows)]
+mod windows;
 
 use std::mem::MaybeUninit;
 
 #[cfg(unix)]
 type RawArena = unix::VirtArena;
+#[cfg(windows)]
+type RawArena = windows::VirtArena;
 
 /// A memory arena which leverages the virtual memory system
 /// for allocating structures in a single contiguous memory region.
