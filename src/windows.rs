@@ -6,8 +6,11 @@ use windows::Win32::System::Memory::{
 
 pub struct VirtArena {
     start: NonNull<u8>,
-    cursor: Cell<NonNull<u8>>,
+    alloc_cursor: Cell<NonNull<u8>>,
+    commit_cursor: Cell<NonNull<u8>>,
 }
+
+const COMMIT_BLOCK_SIZE: usize = 1 << 10; // 1MiB
 
 impl Default for VirtArena {
     fn default() -> Self {
@@ -37,24 +40,25 @@ impl VirtArena {
 
         Self {
             start,
-            cursor: Cell::new(start),
+            alloc_cursor: Cell::new(start),
+            commit_cursor: Cell::new(start),
         }
     }
 }
 
 impl super::VirtArenaRaw for VirtArena {
     fn bytes_used(&self) -> usize {
-        unsafe { self.cursor.get().byte_offset_from(self.start) as usize }
+        unsafe { self.alloc_cursor.get().byte_offset_from(self.start) as usize }
     }
 
     fn reset(&mut self) {
-        self.cursor.set(self.start);
+        self.alloc_cursor.set(self.start);
     }
 
     fn alloc_uninit<T: Sized>(&self) -> &mut MaybeUninit<T> {
         let layout = Layout::new::<MaybeUninit<T>>();
 
-        let ptr: NonNull<MaybeUninit<T>> = self.cursor.get().cast();
+        let ptr: NonNull<MaybeUninit<T>> = self.alloc_cursor.get().cast();
 
         let off = ptr.align_offset(layout.align());
 
@@ -66,14 +70,26 @@ impl super::VirtArenaRaw for VirtArena {
                 panic!("OOM");
             }
 
-            VirtualAlloc(
-                Some(ptr.as_ptr() as *const _),
-                layout.size() + off,
-                MEM_COMMIT,
-                PAGE_READWRITE,
-            );
+            self.alloc_cursor.set(cursor);
 
-            self.cursor.set(cursor);
+            while self.commit_cursor.get() < self.alloc_cursor.get() {
+                let ptr = VirtualAlloc(
+                    Some(self.commit_cursor.get().as_ptr() as *const _),
+                    COMMIT_BLOCK_SIZE,
+                    MEM_COMMIT,
+                    PAGE_READWRITE,
+                );
+                if ptr.is_null() {
+                    panic!(
+                        "Failed to commit memory block: {}",
+                        std::io::Error::last_os_error()
+                    );
+                }
+
+                self.commit_cursor
+                    .set(self.commit_cursor.get().byte_add(COMMIT_BLOCK_SIZE))
+            }
+
             value.as_mut()
         }
     }
