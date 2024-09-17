@@ -5,7 +5,7 @@ description = "A virtual memroy bump allocator."
 repository = "https://github.com/matszczygiel/virt-arena"
 license = "MIT"
 categories = ["memory-management"]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [target.'cfg(unix)'.dependencies]
