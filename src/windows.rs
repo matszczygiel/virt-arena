@@ -1,4 +1,4 @@
-use std::{alloc::Layout, cell::Cell, mem::MaybeUninit, ptr::NonNull};
+use std::{alloc::Layout, cell::Cell, ptr::NonNull};
 
 use windows::Win32::System::Memory::{
     VirtualAlloc, VirtualFree, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE,
@@ -55,15 +55,13 @@ impl super::VirtArenaRaw for VirtArena {
         self.alloc_cursor.set(self.start);
     }
 
-    fn alloc_uninit<T: Sized>(&self) -> &mut MaybeUninit<T> {
-        let layout = Layout::new::<MaybeUninit<T>>();
-
-        let ptr: NonNull<MaybeUninit<T>> = self.alloc_cursor.get().cast();
+    fn alloc(&self, layout: Layout) -> NonNull<u8> {
+        let ptr = self.alloc_cursor.get();
 
         let off = ptr.align_offset(layout.align());
 
         unsafe {
-            let mut value = ptr.byte_add(off);
+            let value = ptr.byte_add(off);
             let cursor: NonNull<u8> = value.byte_add(layout.size()).cast();
 
             if cursor.byte_offset_from(self.start) as usize > super::VIRT_ALLOC_SIZE {
@@ -90,7 +88,7 @@ impl super::VirtArenaRaw for VirtArena {
                     .set(self.commit_cursor.get().byte_add(COMMIT_BLOCK_SIZE))
             }
 
-            value.as_mut()
+            value
         }
     }
 }

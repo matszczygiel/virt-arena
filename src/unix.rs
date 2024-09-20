@@ -1,6 +1,5 @@
 use std::alloc::Layout;
 use std::cell::Cell;
-use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 
 use libc::*;
@@ -59,15 +58,13 @@ impl crate::VirtArenaRaw for VirtArena {
         self.cursor.set(self.start);
     }
 
-    fn alloc_uninit<T: Sized>(&self) -> &mut MaybeUninit<T> {
-        let layout = Layout::new::<MaybeUninit<T>>();
-
-        let ptr: NonNull<MaybeUninit<T>> = self.cursor.get().cast();
+    fn alloc(&self, layout: Layout) -> NonNull<u8> {
+        let ptr = self.cursor.get();
 
         let off = ptr.align_offset(layout.align());
 
         unsafe {
-            let mut ptr = ptr.byte_add(off);
+            let ptr = ptr.byte_add(off);
             let cursor: NonNull<u8> = ptr.byte_add(layout.size()).cast();
 
             if cursor.byte_offset_from(self.start) as usize > super::VIRT_ALLOC_SIZE {
@@ -75,7 +72,7 @@ impl crate::VirtArenaRaw for VirtArena {
             }
             self.cursor.set(cursor);
 
-            ptr.as_mut()
+            ptr
         }
     }
 }
